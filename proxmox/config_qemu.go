@@ -50,6 +50,7 @@ type ConfigQemu struct {
 	Description     string          `json:"description,omitempty"`
 	Disks           *QemuStorages   `json:"disks,omitempty"`
 	EFIDisk         QemuDevice      `json:"efidisk,omitempty"`   // TODO should be a struct
+	TPMState        QemuDevice      `json:"tpmState,omitempty"`  // TODO should be a struct
 	FullClone       *int            `json:"fullclone,omitempty"` // TODO should probably be a bool
 	HaGroup         string          `json:"hagroup,omitempty"`
 	HaState         string          `json:"hastate,omitempty"` // TODO should be custom type with enum
@@ -119,6 +120,9 @@ func (config *ConfigQemu) defaults() {
 	}
 	if config.EFIDisk == nil {
 		config.EFIDisk = QemuDevice{}
+	}
+	if config.TPMState == nil {
+		config.TPMState = QemuDevice{}
 	}
 	if config.Onboot == nil {
 		config.Onboot = util.Pointer(true)
@@ -708,6 +712,15 @@ func (ConfigQemu) mapToStruct(vmr *VmRef, params map[string]interface{}) (*Confi
 		config.EFIDisk = efiDiskConfMap
 	}
 
+	// tpmstate
+	if tpmstate, isSet := params["tpmstate0"].(string); isSet {
+		tpmStateConfMap := ParsePMConf(tpmstate, "volume")
+		storageName, fileName := ParseSubConf(tpmStateConfMap["volume"].(string), ":")
+		tpmStateConfMap["storage"] = storageName
+		tpmStateConfMap["file"] = fileName
+		config.TPMState = tpmStateConfMap
+	}
+
 	return &config, nil
 }
 
@@ -745,7 +758,8 @@ func (newConfig ConfigQemu) setAdvanced(currentConfig *ConfigQemu, rebootIfNeede
 	var params map[string]interface{}
 	var exitStatus string
 
-	if currentConfig != nil { // Update
+	if currentConfig != nil {
+		// Update
 		// TODO implement tmp move and version change
 		url := "/nodes/" + vmr.node + "/" + vmr.vmType + "/" + strconv.Itoa(vmr.vmId) + "/config"
 		var itemsToDeleteBeforeUpdate string // this is for items that should be removed before they can be created again e.g. cloud-init disks. (convert to array when needed)
@@ -1363,6 +1377,30 @@ func (c ConfigQemu) CreateQemuEfiParams(params map[string]interface{}) {
 			storage = fmt.Sprintf("%s,%s", storage, strings.Join(storage_info, ","))
 		}
 		params["efidisk0"] = storage
+	}
+}
+
+// Create tpm parameter.
+func (c ConfigQemu) CreateQemuTpmParams(params map[string]interface{}) {
+	efiParam := QemuDeviceParam{}
+	efiParam = efiParam.createDeviceParam(c.TPMState, nil)
+
+	if len(efiParam) > 0 {
+		storage_info := []string{}
+		storage := ""
+		for _, param := range efiParam {
+			key := strings.Split(param, "=")
+			if key[0] == "storage" {
+				// Proxmox format for disk creation
+				storage = fmt.Sprintf("%s:1", key[1])
+			} else {
+				storage_info = append(storage_info, param)
+			}
+		}
+		if len(storage_info) > 0 {
+			storage = fmt.Sprintf("%s,%s", storage, strings.Join(storage_info, ","))
+		}
+		params["tpmstate0"] = storage
 	}
 }
 

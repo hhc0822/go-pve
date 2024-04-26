@@ -83,3 +83,49 @@ func (config ConfigNetwork) UpdateNetwork(client *Client) (err error) {
 	}
 	return
 }
+
+type Network struct {
+	Active      float64 `json:"active"`
+	Address     string  `json:"address"`
+	AutoStart   float64 `json:"autoStart"`
+	BridgeFd    string  `json:"bridge_fd"`
+	BridgePorts string  `json:"bridge_ports"`
+	BridgeStp   string  `json:"bridge_stp"`
+	Cidr        string  `json:"cidr"`
+	Gateway     string  `json:"gateway"`
+	Iface       string  `json:"iface"`
+	Method      string  `json:"method"`
+	Method6     string  `json:"method6"`
+	Netmask     string  `json:"netmask"`
+	Priority    float64 `json:"priority"`
+	Type        string  `json:"type"`
+}
+
+func (c *Client) GetNetworkByType(node string, typeFilter string, request interface{}) error {
+	url := fmt.Sprintf("/nodes/%s/network", node)
+	if typeFilter != "" {
+		url += fmt.Sprintf("?type=%s", typeFilter)
+	}
+	resp, err := c.session.Get(url, nil, nil)
+	if err != nil {
+		return err
+	}
+	return handleResponse(resp, request)
+}
+
+type QemuNetwork struct {
+	Active      float64 `json:"active"`
+	Address     string  `json:"address"`
+	AutoStart   float64 `json:"autoStart"`
+	BridgeFd    string  `json:"bridge_fd"`
+	BridgePorts string  `json:"bridge_ports"`
+	BridgeStp   string  `json:"bridge_stp"`
+	Cidr        string  `json:"cidr"`
+	Gateway     string  `json:"gateway"`
+	Iface       string  `json:"iface"`
+	Method      string  `json:"method"`
+	Method6     string  `json:"method6"`
+	Netmask     string  `json:"netmask"`
+	Priority    float64 `json:"priority"`
+	Type        string  `json:"type"`
+}

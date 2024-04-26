@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -404,4 +405,45 @@ func (s *Session) Put(
 		headers.Add("Content-Type", "application/x-www-form-urlencoded")
 	}
 	return s.Request("PUT", url, params, headers, body)
+}
+
+func handleResponse(res *http.Response, v interface{}) error {
+	if res.StatusCode == http.StatusInternalServerError ||
+		res.StatusCode == http.StatusNotImplemented {
+		return errors.New(res.Status)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode == http.StatusBadRequest {
+		var errorskey map[string]json.RawMessage
+		if err := json.Unmarshal(body, &errorskey); err != nil {
+			return err
+		}
+
+		if body, ok := errorskey["errors"]; ok {
+			return fmt.Errorf("bad request: %s - %s", res.Status, body)
+		}
+
+		return fmt.Errorf("bad request: %s - %s", res.Status, string(body))
+	}
+
+	// if nil passed don't bother to do any unmarshalling
+	if nil == v {
+		return nil
+	}
+	// account for everything being in a data key
+	var datakey map[string]json.RawMessage
+	if err := json.Unmarshal(body, &datakey); err != nil {
+		return err
+	}
+
+	if body, ok := datakey["data"]; ok {
+		return json.Unmarshal(body, &v)
+	}
+
+	return json.Unmarshal(body, &v) // assume passed in type fully supports response
 }
